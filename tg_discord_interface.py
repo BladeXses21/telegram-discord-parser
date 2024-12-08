@@ -1,33 +1,83 @@
+import os
 import sys
+import json
 import subprocess
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel
-from pars_conf import account, source_channel_ids, destination_channel_usernames
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit
+
+
+def resource_path(relative_path):
+    """Отримує абсолютний шлях до ресурсу, працює як у разі запуску скрипту, так і для згенерованого exe"""
+    try:
+        # PyInstaller створює тимчасову директорію і зберігає шлях у _MEIPASS
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+def load_config():
+    with open(resource_path('config.json'), 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def save_config(config_data):
+    with open(resource_path('config.json'), 'w', encoding='utf-8') as f:
+        json.dump(config_data, f, indent=4)
+
+
+def clear_discord_messages():
+    with open(resource_path('discord_messages.json'), 'w', encoding='utf-8') as f:
+        json.dump({}, f)
 
 
 class TGDiscordInterface(QWidget):
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.config = load_config()
         self.discord_process = None
         self.telegram_process = None
+        self.initUI()
 
     def initUI(self):
         self.setWindowTitle('TG Discord Interface')
-
         layout = QVBoxLayout()
 
-        # Display API ID and API Hash
-        self.api_id_label = QLabel(f"API ID: {account['api_id']}", self)
-        self.api_hash_label = QLabel(f"API Hash: {account['api_hash']}", self)
+        # Input fields for configurations
+        self.api_id_input = QLineEdit(self)
+        self.api_id_input.setText(self.config['account']['api_id'])
+        layout.addWidget(QLabel('API ID:'))
+        layout.addWidget(self.api_id_input)
 
-        layout.addWidget(self.api_id_label)
-        layout.addWidget(self.api_hash_label)
+        self.api_hash_input = QLineEdit(self)
+        self.api_hash_input.setText(self.config['account']['api_hash'])
+        layout.addWidget(QLabel('API Hash:'))
+        layout.addWidget(self.api_hash_input)
 
-        # Display other configuration details
-        self.config_label = QLabel(f"Source Channel IDs: {source_channel_ids}", self)
-        layout.addWidget(self.config_label)
-        self.dest_label = QLabel(f"Destination Channels: {destination_channel_usernames}", self)
-        layout.addWidget(self.dest_label)
+        self.source_channel_input = QLineEdit(self)
+        self.source_channel_input.setText(', '.join(map(str, self.config['source_channel_ids'])))
+        layout.addWidget(QLabel('Source Channel IDs (comma separated):'))
+        layout.addWidget(self.source_channel_input)
+
+        self.destination_channel_input = QLineEdit(self)
+        self.destination_channel_input.setText(', '.join(self.config['destination_channel_usernames']))
+        layout.addWidget(QLabel('Destination Channels (comma separated):'))
+        layout.addWidget(self.destination_channel_input)
+
+        self.discord_token_input = QLineEdit(self)
+        self.discord_token_input.setText(self.config['DISCORD_TOKEN'])
+        layout.addWidget(QLabel('Discord Token:'))
+        layout.addWidget(self.discord_token_input)
+
+        self.guild_id_input = QLineEdit(self)
+        self.guild_id_input.setText(self.config['TARGET_GUILD_ID'])
+        layout.addWidget(QLabel('Target Guild ID:'))
+        layout.addWidget(self.guild_id_input)
+
+        # Apply button to save config
+        self.apply_btn = QPushButton('Apply', self)
+        self.apply_btn.clicked.connect(self.update_config)
+        layout.addWidget(self.apply_btn)
 
         # Start and Stop buttons
         self.start_btn = QPushButton('Start', self)
@@ -41,22 +91,38 @@ class TGDiscordInterface(QWidget):
 
         self.setLayout(layout)
 
-    def start_services(self):
-        if not self.discord_process:
-            self.discord_process = subprocess.Popen(
-                ['python', 'discord_parser.py'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            print("Discord script started")
+    def update_config(self):
+        # Update config dictionary with new values
+        self.config['account']['api_id'] = self.api_id_input.text()
+        self.config['account']['api_hash'] = self.api_hash_input.text()
+        self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
+        self.config['destination_channel_usernames'] = self.destination_channel_input.text().split(',')
+        self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
+        self.config['TARGET_GUILD_ID'] = self.guild_id_input.text()
 
-        if not self.telegram_process:
-            self.telegram_process = subprocess.Popen(
-                ['python', 'telegram_parser.py'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+        # Save updated config to file
+        save_config(self.config)
+
+    def start_services(self):
+        current_directory = os.path.abspath(os.path.dirname(__file__))
+        discord_parser_path = os.path.join(current_directory, 'discord_parser.py')
+        telegram_parser_path = os.path.join(current_directory, 'telegram_parser.py')
+
+        if sys.platform == "win32":
+            self.discord_process = subprocess.Popen(
+                ['cmd', '/k', f'python {discord_parser_path}'], creationflags=subprocess.CREATE_NEW_CONSOLE
             )
-            print("Telegram script started")
+            self.telegram_process = subprocess.Popen(
+                ['cmd', '/k', f'python {telegram_parser_path}'], creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+        else:
+            # для Linux або macOS
+            self.discord_process = subprocess.Popen(
+                ['gnome-terminal', '--', 'python3', discord_parser_path]
+            )
+            self.telegram_process = subprocess.Popen(
+                ['gnome-terminal', '--', 'python3', telegram_parser_path]
+            )
 
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -64,13 +130,15 @@ class TGDiscordInterface(QWidget):
     def stop_services(self):
         if self.discord_process:
             self.discord_process.terminate()
+            self.discord_process.wait()
             self.discord_process = None
-            print("Discord script stopped")
-
         if self.telegram_process:
             self.telegram_process.terminate()
+            self.telegram_process.wait()
             self.telegram_process = None
-            print("Telegram script stopped")
+
+        # Очистити вміст файлу discord_messages.json
+        clear_discord_messages()
 
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)

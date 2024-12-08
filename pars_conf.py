@@ -1,12 +1,19 @@
+import json
+
+with open('config.json', 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
 # Telegram settings
 
-account = { "api_id": "", "api_hash": "" } # Ці значення використовуються для автентифікації вашого застосунку в Telegram API
-source_channel_ids = [1002308977883] # id цільового каналу на який ми прослуховуємо / Додайте інші ID, якщо потрібно
-destination_channel_usernames = ['https://t.me/+XWnTEeT9p4plN2E6', '@bladexses'] # Додайте інші username-каналів, якщо потрібно
+account = config["account"]
+source_channel_ids = config["source_channel_ids"]
+destination_channel_usernames = config["destination_channel_usernames"]
 
 # Discord settings
 
-DISCORD_TOKEN = ''
-TARGET_GUILD_ID = ''
+DISCORD_TOKEN = config["DISCORD_TOKEN"]
+TARGET_GUILD_ID = config["TARGET_GUILD_ID"]
 
-json_file_path = 'discord_messages.json'
+json_file_path = './discord_messages.json'
+
+
