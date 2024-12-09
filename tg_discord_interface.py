@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import subprocess
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QHBoxLayout, QToolTip
 
 
 def resource_path(relative_path):
@@ -43,36 +43,60 @@ class TGDiscordInterface(QWidget):
         self.setWindowTitle('TG Discord Interface')
         layout = QVBoxLayout()
 
-        # Input fields for configurations
+        # Функція для створення поля вводу з підказкою
+        def add_input_field(label_text, input_field, tooltip_text):
+            sub_layout = QHBoxLayout()
+            label = QLabel(label_text)
+            tooltip_label = QLabel(' (?)')
+            tooltip_label.setStyleSheet("color: blue;")
+            QToolTip.setFont(tooltip_label.font())
+            tooltip_label.setToolTip(tooltip_text)
+            sub_layout.addWidget(label)
+            sub_layout.addWidget(input_field)
+            sub_layout.addWidget(tooltip_label)
+            layout.addLayout(sub_layout)
+
+        # Створення і додавання полів вводу з підказками
         self.api_id_input = QLineEdit(self)
         self.api_id_input.setText(self.config['account']['api_id'])
-        layout.addWidget(QLabel('API ID:'))
-        layout.addWidget(self.api_id_input)
+        add_input_field("API ID:", self.api_id_input,
+                        "Введіть ваш API ID для Telegram. Ви можете отримати його на сайті my.telegram.org.")
 
         self.api_hash_input = QLineEdit(self)
         self.api_hash_input.setText(self.config['account']['api_hash'])
-        layout.addWidget(QLabel('API Hash:'))
-        layout.addWidget(self.api_hash_input)
+        add_input_field("API Hash:", self.api_hash_input,
+                        "Введіть ваш API Hash для Telegram. Ви можете отримати його на сайті my.telegram.org.")
 
         self.source_channel_input = QLineEdit(self)
         self.source_channel_input.setText(', '.join(map(str, self.config['source_channel_ids'])))
-        layout.addWidget(QLabel('Source Channel IDs (comma separated):'))
-        layout.addWidget(self.source_channel_input)
+        add_input_field("Source Channel IDs:", self.source_channel_input,
+                        "Введіть ID каналу. Це ID можна отримати зайшовши в web версію телеграм, та обравши потрібний канал.\nПісля чого в строці адресу сторінки скопіювати id каналу")
 
         self.destination_channel_input = QLineEdit(self)
         self.destination_channel_input.setText(', '.join(self.config['destination_channel_usernames']))
-        layout.addWidget(QLabel('Destination Channels (comma separated):'))
-        layout.addWidget(self.destination_channel_input)
+        add_input_field("Destination Channels:", self.destination_channel_input,
+                        "Введіть імена каналу. Наприклад, @channel_name або посилання наприклад, https://t.me/...")
 
         self.discord_token_input = QLineEdit(self)
         self.discord_token_input.setText(self.config['DISCORD_TOKEN'])
-        layout.addWidget(QLabel('Discord Token:'))
-        layout.addWidget(self.discord_token_input)
+        add_input_field("Discord Token:", self.discord_token_input,
+                        "Введіть ваш токен Discord. Його можна отримати у браузері скористайтеся клавішею F12, щоб викликати інструменти розробника. Якщо мова йде про клієнт Discord, то комбінація виглядає як Ctrl + Shift + I.\n"
+                        "У цьому вікні перейдіть на вкладку «Network».\n"
+                        "Напишіть будь-яке повідмолення у будь-який канал в discord.\n"
+                        "Після цього у консолі розробника в активності з`явиться новий елемент message.\n"
+                        "Нажміть на цей елемент та відкрийте в ньому вкладку Headers.\n"
+                        "В ньому потрібно знайти назву Authorization - це і є Ваш TOKEN. (не передавайте його нікому)")
 
-        self.guild_id_input = QLineEdit(self)
-        self.guild_id_input.setText(self.config['TARGET_GUILD_ID'])
-        layout.addWidget(QLabel('Target Guild ID:'))
-        layout.addWidget(self.guild_id_input)
+        # self.guild_id_input = QLineEdit(self)
+        # self.guild_id_input.setText(self.config['TARGET_GUILD_ID'])
+        # add_input_field("Target Guild ID:", self.guild_id_input,
+        #                 "Введіть ID серверу (guild) Discord, на якому ви хочете отримувати повідомлення. Його можна отримати, увімкнувши 'Developer Mode' у Discord.\nПісля чого обрати потрібний сервер, та нажавши правою клавішею обрати пункт - Копіювати ID серверу")
+        #
+        # # Нове поле для TARGET_CHANNEL_ID
+        # self.channel_id_input = QLineEdit(self)
+        # self.channel_id_input.setText(self.config.get('TARGET_CHANNEL_ID', ''))
+        # add_input_field("Target Channel ID:", self.channel_id_input,
+        #                 "Введіть ID каналу Discord. Це можна отримати, увімкнувши 'Developer Mode' у Discord.")
 
         # Apply button to save config
         self.apply_btn = QPushButton('Apply', self)
@@ -98,7 +122,6 @@ class TGDiscordInterface(QWidget):
         self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
         self.config['destination_channel_usernames'] = self.destination_channel_input.text().split(',')
         self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
-        self.config['TARGET_GUILD_ID'] = self.guild_id_input.text()
 
         # Save updated config to file
         save_config(self.config)

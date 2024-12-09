@@ -1,14 +1,15 @@
 {
-    "DISCORD_TOKEN": "Ваш токен",
-    "TARGET_GUILD_ID": "766489858788950027",
+    "DISCORD_TOKEN": "",
+    "TARGET_GUILD_ID": "",
+    "TARGET_CHANNEL_ID": "",
     "destination_channel_usernames": [
-        "https://t.me/+XWnTEeT9p4plN2E6"
+        "https://t.me/"
     ],
     "source_channel_ids": [
-        1002308977883
+        123
     ],
     "account": {
-        "api_id": "16724016",
-        "api_hash": "797a79964ef9c27d7ecf6a0889912bdd"
+        "api_id": "",
+        "api_hash": ""
     }
 }

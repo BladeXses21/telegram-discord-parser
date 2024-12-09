@@ -13,6 +13,7 @@ destination_channel_usernames = config["destination_channel_usernames"]
 
 DISCORD_TOKEN = config["DISCORD_TOKEN"]
 TARGET_GUILD_ID = config["TARGET_GUILD_ID"]
+TARGET_CHANNEL_ID = config["TARGET_CHANNEL_ID"]
 
 json_file_path = './discord_messages.json'
 
