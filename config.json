@@ -1,14 +1,14 @@
-   {
-     "DISCORD_TOKEN": "ваш_discord_токен",
-     "TARGET_GUILD_ID": "ваш_target_guild_id",
-     "destination_channel_usernames": [
-       "https://t.me/ваш_телеграм_канал"
-     ],
-     "source_channel_ids": [
-       ваш_telegram_source_id
-     ],
-     "account": {
-       "api_id": "ваш_api_id",
-       "api_hash": "ваш_api_hash"
-     }
-   }
+{
+    "DISCORD_TOKEN": "Ваш токен",
+    "TARGET_GUILD_ID": "766489858788950027",
+    "destination_channel_usernames": [
+        "https://t.me/+XWnTEeT9p4plN2E6"
+    ],
+    "source_channel_ids": [
+        1002308977883
+    ],
+    "account": {
+        "api_id": "16724016",
+        "api_hash": "797a79964ef9c27d7ecf6a0889912bdd"
+    }
+}
