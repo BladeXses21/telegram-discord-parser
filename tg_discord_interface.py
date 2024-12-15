@@ -4,6 +4,8 @@ import json
 import subprocess
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QHBoxLayout, QToolTip
 
+from expiry_date import check_expiry_date
+
 
 def resource_path(relative_path):
     """Отримує абсолютний шлях до ресурсу, працює як у разі запуску скрипту, так і для згенерованого exe"""
@@ -14,6 +16,20 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+import importlib.util
+
+pars_conf_path = resource_path('pars_conf.py')
+spec = importlib.util.spec_from_file_location("pars_conf", pars_conf_path)
+pars_conf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pars_conf)
+
+# Доступ до змінних з pars_conf
+account = pars_conf.account
+source_channel_ids = pars_conf.source_channel_ids
+destination_channel_usernames = pars_conf.destination_channel_usernames
+json_file_path = pars_conf.json_file_path
 
 
 def load_config():
@@ -92,11 +108,12 @@ class TGDiscordInterface(QWidget):
         # add_input_field("Target Guild ID:", self.guild_id_input,
         #                 "Введіть ID серверу (guild) Discord, на якому ви хочете отримувати повідомлення. Його можна отримати, увімкнувши 'Developer Mode' у Discord.\nПісля чого обрати потрібний сервер, та нажавши правою клавішею обрати пункт - Копіювати ID серверу")
         #
+
         # # Нове поле для TARGET_CHANNEL_ID
-        # self.channel_id_input = QLineEdit(self)
-        # self.channel_id_input.setText(self.config.get('TARGET_CHANNEL_ID', ''))
-        # add_input_field("Target Channel ID:", self.channel_id_input,
-        #                 "Введіть ID каналу Discord. Це можна отримати, увімкнувши 'Developer Mode' у Discord.")
+        self.channel_id_input = QLineEdit(self)
+        self.channel_id_input.setText(self.config.get('TARGET_GUILD_ID', ''))
+        add_input_field("Target Guild ID:", self.channel_id_input,
+                        "Введіть ID сервера Discord. Це можна отримати, увімкнувши 'Developer Mode' у Discord.")
 
         # Apply button to save config
         self.apply_btn = QPushButton('Apply', self)
@@ -122,6 +139,7 @@ class TGDiscordInterface(QWidget):
         self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
         self.config['destination_channel_usernames'] = self.destination_channel_input.text().split(',')
         self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
+        self.config['TARGET_GUILD_ID'] = self.channel_id_input.text()
 
         # Save updated config to file
         save_config(self.config)
@@ -132,37 +150,60 @@ class TGDiscordInterface(QWidget):
         telegram_parser_path = os.path.join(current_directory, 'telegram_parser.py')
 
         if sys.platform == "win32":
+            # Запускаємо процеси напряму без використання `cmd.exe`
             self.discord_process = subprocess.Popen(
-                ['cmd', '/k', f'python {discord_parser_path}'], creationflags=subprocess.CREATE_NEW_CONSOLE
+                ['python', discord_parser_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
             )
             self.telegram_process = subprocess.Popen(
-                ['cmd', '/k', f'python {telegram_parser_path}'], creationflags=subprocess.CREATE_NEW_CONSOLE
+                ['python', telegram_parser_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
             )
         else:
-            # для Linux або macOS
+            # Для Linux/macOS залишаємо стандартний запуск
             self.discord_process = subprocess.Popen(
-                ['gnome-terminal', '--', 'python3', discord_parser_path]
+                ['python3', discord_parser_path]
             )
             self.telegram_process = subprocess.Popen(
-                ['gnome-terminal', '--', 'python3', telegram_parser_path]
+                ['python3', telegram_parser_path]
             )
 
+        # Зберігаємо PID процесів у змінну
+        self.discord_pid = self.discord_process.pid
+        self.telegram_pid = self.telegram_process.pid
+
+        print(f"Discord процес запущено з PID: {self.discord_pid}")
+        print(f"Telegram процес запущено з PID: {self.telegram_pid}")
+
+        # Деактивація кнопки Start після запуску
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
 
     def stop_services(self):
+        # Перевірка й завершення Discord процесу
         if self.discord_process:
-            self.discord_process.terminate()
-            self.discord_process.wait()
+            try:
+                self.discord_process.terminate()  # Завершення процесу через terminate()
+                self.discord_process.wait()  # Очікуємо закриття
+                print(f"Discord процес з PID {self.discord_pid} зупинено.")
+            except Exception as e:
+                print(f"Помилка під час завершення Discord: {e}")
             self.discord_process = None
+
+        # Перевірка й завершення Telegram процесу
         if self.telegram_process:
-            self.telegram_process.terminate()
-            self.telegram_process.wait()
+            try:
+                self.telegram_process.terminate()  # Завершення процесу через terminate()
+                self.telegram_process.wait()  # Очікуємо закриття
+                print(f"Telegram процес з PID {self.telegram_pid} зупинено.")
+            except Exception as e:
+                print(f"Помилка під час завершення Telegram: {e}")
             self.telegram_process = None
 
-        # Очистити вміст файлу discord_messages.json
+        # Очистити файл Discord повідомлень
         clear_discord_messages()
 
+        # Увімкнути кнопку "Start" і вимкнути кнопку "Stop"
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
 
@@ -170,5 +211,8 @@ class TGDiscordInterface(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = TGDiscordInterface()
+
+    check_expiry_date(ex)
+
     ex.show()
     sys.exit(app.exec_())

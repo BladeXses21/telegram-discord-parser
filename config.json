@@ -1,15 +1,14 @@
 {
-    "DISCORD_TOKEN": "",
-    "TARGET_GUILD_ID": "",
-    "TARGET_CHANNEL_ID": "",
+    "DISCORD_TOKEN": "NDUwMzYxMjY5MTI4NzkwMDI2.GcEOrX.bBhGsFBJcOY1Qttwqd7akojJKrtSiDxFw0V2Dc",
+    "TARGET_GUILD_ID": "1216025635022180423",
     "destination_channel_usernames": [
-        "https://t.me/"
+        "-1002381428594"
     ],
     "source_channel_ids": [
-        123
+        1002308977883
     ],
     "account": {
-        "api_id": "",
-        "api_hash": ""
+        "api_id": "16724016",
+        "api_hash": "797a79964ef9c27d7ecf6a0889912bdd"
     }
 }

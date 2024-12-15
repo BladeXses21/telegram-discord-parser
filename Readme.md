@@ -77,7 +77,6 @@
    ```json
    {
      "DISCORD_TOKEN": "ваш_discord_токен",
-     "TARGET_GUILD_ID": "ваш_target_guild_id",
      "destination_channel_usernames": [
        "https://t.me/ваш_телеграм_канал"
      ],
