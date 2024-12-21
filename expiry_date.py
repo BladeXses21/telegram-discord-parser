@@ -3,7 +3,7 @@ import sys
 
 
 def check_expiry_date(app_instance):
-    expiry_date = datetime.date(2024, 12, 20)
+    expiry_date = datetime.date(2024, 12, 21)
 
     current_date = datetime.date.today()
 

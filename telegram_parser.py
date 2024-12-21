@@ -3,8 +3,9 @@ import os
 import json
 
 from telethon import TelegramClient, events
-from pars_conf import account, source_channel_ids, destination_channel_usernames, json_file_path
+from pars_conf import account, source_channel_ids, destination_channel_usernames, json_file_path, channel_map
 from telethon.tl.types import User, Channel, Chat
+from telethon.tl.functions.channels import CreateChannelRequest
 
 
 class TelegramBot:
@@ -13,128 +14,154 @@ class TelegramBot:
         self.last_modified_time = 0
         self.cached_channels = {}
 
-    async def forward_message(self, message, files=None, reply_to=None):
+    async def forward_message(self, message, files=None, reply_to=None, target_chanel=None):
         """
-        Send message and/or reply to Telegram channel.
+        Оновлений код для обробки формату повідомлень.
         Args:
             message: Основний текст повідомлення.
             files: Список файлів для пересилання.
-            reply_to: Інформація про відповідь (dict), якщо є.
-                dict має ключі "author" і "content".
+            reply_to: Інформація про відповідь (dict), якщо є (з полями "branch_name", "author", "content").
+            target_chanel: Канал, у який слід переслати повідомлення, прив'язка каналів з файлу channel_to_channel.json.
         """
-        for destination in destination_channel_usernames:
-            try:
-                if destination not in self.cached_channels:
-                    if destination.startswith('https://t.me/'):
-                        self.cached_channels[destination] = await self.client.get_entity(destination)
-                    elif destination.startswith('@'):
-                        self.cached_channels[destination] = await self.client.get_entity(destination)
-                    elif destination.isdigit() or destination.startswith("-100"):
-                        channel_id = int(destination) if destination.startswith("-100") else int(f"-100{destination}")
-                        self.cached_channels[destination] = channel_id
+        try:
+            # Якщо задано цільовий канал, перевіряємо/підключаємо його
+            if target_chanel:
+                if target_chanel not in self.cached_channels:
+                    if target_chanel.startswith('https://t.me/'):
+                        self.cached_channels[target_chanel] = await self.client.get_entity(target_chanel)
+                    elif target_chanel.startswith('@'):
+                        self.cached_channels[target_chanel] = await self.client.get_entity(target_chanel)
+                    elif target_chanel.isdigit() or target_chanel.startswith("-100"):
+                        channel_id = int(target_chanel) if target_chanel.startswith("-100") else int(
+                            f"-100{target_chanel}")
+                        self.cached_channels[target_chanel] = channel_id
                     else:
-                        raise ValueError(f"Invalid destination: {destination}")
+                        raise ValueError(f"Invalid destination: {target_chanel}")
 
-                channel = self.cached_channels[destination]
+                channel = self.cached_channels[target_chanel]
 
-                # Очікуємо та формуємо текст, включаючи інформацію про відповдіь, якщо є
+                # Формування тексту повідомлення
                 if reply_to:
-                    reply_text = (
-                        f'Відповідь на: {reply_to["author"]}\n`{reply_to["content"]}`\n\n'
-                    )
+                    if "branch_name" in reply_to and reply_to["branch_name"]:  # Відповідь у Telegram-гілці
+                        reply_text = (
+                            f'автор `{reply_to["author"]}`" '
+                            f'{reply_to["content"]}\n\n'
+                        )
+                    else:  # Відповідь у іншій платформі
+                        reply_text = (
+                            f'Відповідь на повідомлення `{reply_to["author"]}`\n'
+                            f'{reply_to["content"]}\n\n'
+                        )
                 else:
                     reply_text = ""
 
                 full_message = f"{reply_text}{message}"
 
+                # Відправлення файлів із повідомленням
                 if files:
-                    files_to_remove = []  # Очікуємо на успішну передачу файлів
+                    files_to_remove = []
 
                     for file in files:
                         try:
-                            # Якщо є і текст, і файл, відправляємо їх разом.
                             await self.client.send_file(channel, file, caption=full_message or "")
                             files_to_remove.append(file)
                             print(f"Файл {file} успішно відправлено.")
                         except Exception as e:
-                            print(f"Error sending file: {file}: {e}")
+                            print(f"Помилка при відправленні файлу {file}: {e}")
 
+                    # Видалення файлів після успішної відправки
                     for file in files_to_remove:
                         try:
                             os.remove(file)
-                            print(f'Файл {file} був успішно видалено.')
+                            print(f'Файл {file} успішно видалено.')
                         except Exception as e:
-                            print(f'Error while deleting file {file}: {e}.')
-                    # Лог файлів, які не видалені
-                    for file in set(files) - set(files_to_remove):
-                        print(f"The file {file} was not sent and remained on disk.")
+                            print(f'Помилка при видаленні файлу {file}: {e}.')
 
-                # Якщо є тільки текст (без файлів), відправляємо його як окреме повідомлення
-                elif full_message:
+                elif full_message:  # Якщо тільки текст
                     await self.client.send_message(channel, full_message)
 
                 await asyncio.sleep(1)
-            except Exception as e:
-                print(f"Failed to send message to {destination}: {e}")
+
+        except Exception as e:
+            print(f"Помилка при пересиланні повідомлення в {target_chanel}: {e}")
 
     def setup_message_handler(self):
         @self.client.on(events.NewMessage(chats=source_channel_ids))
         async def handle_event(event):
             try:
+                # Зчитування каналу-отримувача з файлу channel_to_channel.json
+                with open(channel_map, 'r', encoding='utf-8') as f:
+                    required_channels = json.load(f)
+
+                # ID основної групи (завжди) і гілки (якщо є)
+                source_channel_id = str(event.chat_id)
+
+                # Перевіряємо, якщо це гілка (форум)
+                if event.message.reply_to_msg_id:
+                    thread_id = event.message.reply_to_msg_id  # Унікальний ID для гілки
+                    source_channel_id = f"{source_channel_id}_{thread_id}"  # Формуємо нове ID для гілки
+
+                # Логування для налагодження
+                print(f"Обробляється повідомлення: ID групи/гілки - {source_channel_id}")
+
+                # Перевіряємо, чи є ID каналу/гілки в JSON
+                if source_channel_id not in required_channels:
+                    print(f"Channel {source_channel_id} not found in channel_to_channel.json. Skipping...")
+                    return
+
+                # Отримаємо кінцевий канал куди потрібно переслати повідомлення
+                target_channel = required_channels[source_channel_id]
+                print(f"Пересилається до каналу: {target_channel}")
+
+                author_name = ""
+                branch_name = None
                 if event.message.sender:
                     sender = event.message.sender
-                    if isinstance(sender, User):  # Якщо це індивідуальний користувач
+                    if isinstance(sender, User):  # Якщо це користувач
                         author_name = sender.username or sender.first_name or sender.last_name or ""
                     elif isinstance(sender, (Channel, Chat)):  # Якщо це канал або група
                         author_name = sender.title or ""
                     else:
                         author_name = ""
-                else:
-                    author_name = ""
 
-                # Формування тексту повідомлення
-                message = f"`{author_name}:`\n{event.message.message}"  # Текст повідомлення
+                if event.chat and event.chat.title:
+                    branch_name = event.chat.title
 
-                media = event.message.media  # Фотографії, файли, тощо
-                reply_to_msg_id = event.message.reply_to_msg_id  # ID повідомлення, на яке посилаються
-                files = [] # Список файлів для пересилання
-                reply_to = None  # Дані про відповідь
+                message_content = event.message.message  # Основний текст повідомлення
+                reply_to_msg_id = event.message.reply_to_msg_id  # ID відповіді
+                files = []
+                reply_to = None
 
-                # Якщо є медіафайли, завантажуємо їх для пересилання
-                if media:
-                    file_name = await self.client.download_media(media)
+                # Якщо є файли, завантажуємо їх
+                if event.message.media:
+                    file_name = await self.client.download_media(event.message.media)
                     if file_name:
                         files.append(file_name)
-                        print(f"Медіа {file_name} завантажено для пересилання.")
 
-                # Якщо повідомлення є відповіддю, отримуємо текст і автора оригінального повідомлення
+                # Якщо є відповідь
                 if reply_to_msg_id:
                     original_message = await event.message.get_reply_message()
                     if original_message:
+                        original_author_name = ""
                         if original_message.sender:
                             sender = original_message.sender
                             if isinstance(sender, User):
-                                # Якщо це індивідуальний користувач із username
-                                reply_author = sender.username or sender.first_name or sender.last_name or ""
+                                original_author_name = sender.username or sender.first_name or sender.last_name or ""
                             elif isinstance(sender, (Channel, Chat)):
-                                # Якщо це канал або група
-                                reply_author = sender.title or ""
-                            else:
-                                # Якщо це індивідуальний користувач без username
-                                reply_author = ""
-                        else:
-                            reply_author = ""
+                                original_author_name = sender.title or ""
 
                         reply_to = {
-                            "author": reply_author,
+                            "branch_name": branch_name,
+                            "author": original_author_name,
                             "content": original_message.message or ""
                         }
-                        print(f"Відповідає на повідомлення від {reply_to['author']}: {reply_to['content']}")
 
-                # Відправляємо всі отримані дані далі
-                await self.forward_message(message, files=files, reply_to=reply_to)
+                full_message = f'`{branch_name} {author_name}:`\n{message_content}' if branch_name else f'`{author_name}:`\n{message_content}'
+
+                await self.forward_message(full_message, files=files, reply_to=reply_to, target_chanel=target_channel)
+
             except Exception as e:
-                print(f"Помилка під час обробки повідомлення: {e}")
+                print(f"Помилка обробки повідомлення: {e}")
 
     async def watch_file(self):
         processed_messages = set()
@@ -150,7 +177,12 @@ class TelegramBot:
                     with open(json_file_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
 
+                    # Зчитування каналу-отримувача з файлу channel_to_channel.json
+                    with open(channel_map, 'r', encoding='utf-8') as f:
+                        required_channels = json.load(f)
+
                     # create unique key for message (hash)
+                    channel_id = data.get('channel_id', '')
                     content = data.get('content', '')
                     author = data.get('author', '')
                     files = data.get('files', [])
@@ -161,8 +193,14 @@ class TelegramBot:
                     # Перевірка унікальності повідомлення
                     message_hash = hash((message, tuple(files), json.dumps(reply_to, sort_keys=True)))
 
+                    # Перевіряємо, чи є ID каналу discord в JSON
+                    if channel_id not in required_channels:
+                        print(f"Discord Channel {channel_id} not found in channel_to_channel.json. Skipping...")
+
+                    target_channel = required_channels[channel_id]
+
                     if message_hash not in processed_messages:
-                        await self.forward_message(message, files=files, reply_to=reply_to)
+                        await self.forward_message(message, files=files, reply_to=reply_to, target_chanel=target_channel)
                         processed_messages.add(message_hash)  # add unique key to list
 
                     else:
@@ -171,9 +209,13 @@ class TelegramBot:
             except Exception as e:
                 print(f"Помилка зчитування файлу або надсилання повідомлення: {e}")
 
+
     async def start(self):
         await self.client.start()
         print('Telegram client started and watching file for changes...')
+
+        # await self.get_threads_in_supergroup(source_channel_ids)
+
         self.setup_message_handler()
 
         await self.watch_file()

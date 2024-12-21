@@ -2,7 +2,8 @@ import os
 import sys
 import json
 import subprocess
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QHBoxLayout, QToolTip
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QHBoxLayout, QToolTip, \
+    QScrollArea, QFrame
 
 from expiry_date import check_expiry_date
 
@@ -14,7 +15,6 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except AttributeError:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 
@@ -30,6 +30,8 @@ account = pars_conf.account
 source_channel_ids = pars_conf.source_channel_ids
 destination_channel_usernames = pars_conf.destination_channel_usernames
 json_file_path = pars_conf.json_file_path
+
+channel_map = pars_conf.channel_map
 
 
 def load_config():
@@ -48,12 +50,54 @@ def clear_discord_messages():
 
 
 class TGDiscordInterface(QWidget):
+    channel_mappings = {}
     def __init__(self):
         super().__init__()
         self.config = load_config()
         self.discord_process = None
         self.telegram_process = None
+
+        # Оголошення всіх атрибутів класу
+        self.input_fields = []  # Список динамічних пар полів
+        self.fields_layout = None  # ініціалізація для layout полів
+        self.scroll_area = None
+
         self.initUI()
+        self.load_channels()  # Завантаження існуючих даних із файлу
+
+    def load_channels(self):
+        """
+        Завантажує пари "ID → URL" із JSON файлу в `input_fields`.
+        """
+        try:
+            with open(channel_map, 'r', encoding='utf-8') as f:
+                data = json.load(f)  # Завантаження даних з файлу
+                for channel_id, channel_url in data.items():
+                    self.add_channel_field()  # Створюємо нові поля
+                    id_input, link_input = self.input_fields[-1]  # Остання додана пара
+                    id_input.setText(channel_id)  # Встановлюємо значення ID
+                    link_input.setText(channel_url)  # Встановлюємо значення URL
+        except FileNotFoundError:
+            print("Файл channel_to_channel.json не знайдено. Нових полів не додано.")
+        except json.JSONDecodeError:
+            print("Помилка декодування JSON. Перевірте структуру файлу.")
+
+    def add_channel_field(self):
+        """
+        Додає новий рядок для вводу пари "ID → URL каналу".
+        """
+        sub_layout = QHBoxLayout()
+
+        id_input = QLineEdit(self)
+        id_input.setPlaceholderText("ID каналу (Discord/Telegram)")
+        link_input = QLineEdit(self)
+        link_input.setPlaceholderText("Посилання або ID каналу призначення")
+
+        self.input_fields.append((id_input, link_input))
+
+        sub_layout.addWidget(id_input)
+        sub_layout.addWidget(link_input)
+        self.fields_layout.addLayout(sub_layout)
 
     def initUI(self):
         self.setWindowTitle('TG Discord Interface')
@@ -103,22 +147,17 @@ class TGDiscordInterface(QWidget):
                         "Нажміть на цей елемент та відкрийте в ньому вкладку Headers.\n"
                         "В ньому потрібно знайти назву Authorization - це і є Ваш TOKEN. (не передавайте його нікому)")
 
-        # self.guild_id_input = QLineEdit(self)
-        # self.guild_id_input.setText(self.config['TARGET_GUILD_ID'])
-        # add_input_field("Target Guild ID:", self.guild_id_input,
-        #                 "Введіть ID серверу (guild) Discord, на якому ви хочете отримувати повідомлення. Його можна отримати, увімкнувши 'Developer Mode' у Discord.\nПісля чого обрати потрібний сервер, та нажавши правою клавішею обрати пункт - Копіювати ID серверу")
-        #
 
-        # # Нове поле для TARGET_CHANNEL_ID
-        self.channel_id_input = QLineEdit(self)
-        self.channel_id_input.setText(self.config.get('TARGET_GUILD_ID', ''))
-        add_input_field("Target Guild ID:", self.channel_id_input,
+        # Нове поле для TARGET_GUILD_ID
+        self.guild_id_input = QLineEdit(self)
+        self.guild_id_input.setText(self.config.get('TARGET_GUILD_ID', ''))
+        add_input_field("Target Guild ID:", self.guild_id_input,
                         "Введіть ID сервера Discord. Це можна отримати, увімкнувши 'Developer Mode' у Discord.")
 
         # Apply button to save config
-        self.apply_btn = QPushButton('Apply', self)
-        self.apply_btn.clicked.connect(self.update_config)
-        layout.addWidget(self.apply_btn)
+        self.apply_btn_config = QPushButton('Apply config', self)
+        self.apply_btn_config.clicked.connect(self.update_config)
+        layout.addWidget(self.apply_btn_config)
 
         # Start and Stop buttons
         self.start_btn = QPushButton('Start', self)
@@ -130,6 +169,29 @@ class TGDiscordInterface(QWidget):
         self.stop_btn.setEnabled(False)
         layout.addWidget(self.stop_btn)
 
+        # Прокручувана область для полів пар каналів
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+
+        self.fields_frame = QFrame()
+        self.fields_layout = QVBoxLayout(self.fields_frame)
+
+        # Додаємо перше поле
+        self.add_channel_field()
+
+        self.scroll_area.setWidget(self.fields_frame)
+        layout.addWidget(self.scroll_area)
+
+        # Кнопка "+" для нових пар
+        self.add_btn = QPushButton('+', self)
+        self.add_btn.clicked.connect(self.add_channel_field)
+        layout.addWidget(self.add_btn)
+
+        # Кнопка "Apply" для збереження
+        self.apply_btn_channels = QPushButton('Apply channels', self)
+        self.apply_btn_channels.clicked.connect(self.save_channels)
+        layout.addWidget(self.apply_btn_channels)
+
         self.setLayout(layout)
 
     def update_config(self):
@@ -139,10 +201,11 @@ class TGDiscordInterface(QWidget):
         self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
         self.config['destination_channel_usernames'] = self.destination_channel_input.text().split(',')
         self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
-        self.config['TARGET_GUILD_ID'] = self.channel_id_input.text()
+        self.config['TARGET_GUILD_ID'] = self.guild_id_input.text()
 
         # Save updated config to file
         save_config(self.config)
+        print("Конфігурація успішно оновлена.")
 
     def start_services(self):
         current_directory = os.path.abspath(os.path.dirname(__file__))
@@ -207,6 +270,28 @@ class TGDiscordInterface(QWidget):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
 
+    def save_channels(self):
+        """
+        Метод отримує всі пари "ID → URL", введені у динамічних полях, і зберігає їх у файл `channel_to_channel.json`.
+        """
+        self.channel_mappings = {}  # Очищуємо попередній словник
+
+        # Перебираємо всі пари полів введення
+        for id_input, link_input in self.input_fields:
+            channel_id = id_input.text().strip()  # Зчитуємо текст з поля ID
+            channel_url = link_input.text().strip()  # Зчитуємо текст з поля URL
+
+            # Додавання лише непустих значень
+            if channel_id and channel_url:
+                self.channel_mappings[channel_id] = channel_url
+
+        # Якщо є дані, зберігаємо їх в JSON файл
+        if self.channel_mappings:  # Перевіряємо, чи є значення у словнику
+            with open('channel_to_channel.json', 'w', encoding='utf-8') as f:
+                json.dump(self.channel_mappings, f, ensure_ascii=False, indent=4)
+            print("Збережено до channel_to_channel.json:", self.channel_mappings)
+        else:
+            print("Помилка: Дані для збереження відсутні.")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

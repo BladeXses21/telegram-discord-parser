@@ -36,3 +36,5 @@ DISCORD_TOKEN = config['DISCORD_TOKEN']  # Discord API токен
 TARGET_GUILD_ID = config['TARGET_GUILD_ID']  # ID цільового каналу
 
 json_file_path = resource_path('discord_messages.json')  # Окремий файл
+
+channel_map = resource_path('channel_to_channel.json')
