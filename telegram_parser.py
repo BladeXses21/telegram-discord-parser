@@ -3,9 +3,8 @@ import os
 import json
 
 from telethon import TelegramClient, events
-from pars_conf import account, source_channel_ids, destination_channel_usernames, json_file_path, channel_map
+from pars_conf import account, source_channel_ids, json_file_path, channel_map
 from telethon.tl.types import User, Channel, Chat
-from telethon.tl.functions.channels import CreateChannelRequest
 
 
 class TelegramBot:
@@ -41,19 +40,13 @@ class TelegramBot:
                 channel = self.cached_channels[target_chanel]
 
                 # Формування тексту повідомлення
-                if reply_to:
-                    if "branch_name" in reply_to and reply_to["branch_name"]:  # Відповідь у Telegram-гілці
-                        reply_text = (
-                            f'автор `{reply_to["author"]}`" '
-                            f'{reply_to["content"]}\n\n'
-                        )
-                    else:  # Відповідь у іншій платформі
-                        reply_text = (
-                            f'Відповідь на повідомлення `{reply_to["author"]}`\n'
-                            f'{reply_to["content"]}\n\n'
-                        )
-                else:
+                if reply_to is None:
                     reply_text = ""
+                else:
+                    reply_text = (
+                        f'Відповідь на повідомлення `{reply_to["author"]}`\n'
+                        f'{reply_to["content"]}\n\n'
+                    )
 
                 full_message = f"{reply_text}{message}"
 
@@ -63,9 +56,26 @@ class TelegramBot:
 
                     for file in files:
                         try:
-                            await self.client.send_file(channel, file, caption=full_message or "")
-                            files_to_remove.append(file)
-                            print(f"Файл {file} успішно відправлено.")
+                            file_size = os.path.getsize(file)  # Перевіряємо розмір файлу
+                            print(f"Відправляється файл {file}, розмір: {file_size} байт.")
+
+                            # Telegram не дозволяє відправляти файли розміром більше 2 ГБ
+                            if file_size > 2 * 1024 * 1024 * 1024:
+                                print(f"Файл {file} занадто великий і не може бути відправлений.")
+                                continue
+                                # Механізм повторних спроб
+                            for attempt in range(3):
+                                try:
+                                    await self.client.send_file(channel, file, caption=full_message or "")
+                                    print(f"Спроба {attempt + 1}: Файл {file} успішно відправлено.")
+                                    files_to_remove.append(file)
+                                    break
+                                except Exception as e:
+                                    print(f"Спроба {attempt + 1} не вдалася для файлу {file}. Причина: {e}")
+                                    await asyncio.sleep(5)  # Затримка між повторними спробами
+                            else:
+                                print(f"Не вдалося відправити файл {file} після 3 спроб.")
+
                         except Exception as e:
                             print(f"Помилка при відправленні файлу {file}: {e}")
 
@@ -95,10 +105,9 @@ class TelegramBot:
 
                 # ID основної групи (завжди) і гілки (якщо є)
                 source_channel_id = str(event.chat_id)
-
                 # Перевіряємо, якщо це гілка (форум)
-                if event.message.reply_to_msg_id:
-                    thread_id = event.message.reply_to_msg_id  # Унікальний ID для гілки
+                if event.message.reply_to and event.message.reply_to.reply_to_top_id:
+                    thread_id = event.message.reply_to.reply_to_top_id  # Унікальний ID для гілки
                     source_channel_id = f"{source_channel_id}_{thread_id}"  # Формуємо нове ID для гілки
 
                 # Логування для налагодження
@@ -114,7 +123,6 @@ class TelegramBot:
                 print(f"Пересилається до каналу: {target_channel}")
 
                 author_name = ""
-                branch_name = None
                 if event.message.sender:
                     sender = event.message.sender
                     if isinstance(sender, User):  # Якщо це користувач
@@ -124,13 +132,8 @@ class TelegramBot:
                     else:
                         author_name = ""
 
-                if event.chat and event.chat.title:
-                    branch_name = event.chat.title
-
                 message_content = event.message.message  # Основний текст повідомлення
-                reply_to_msg_id = event.message.reply_to_msg_id  # ID відповіді
                 files = []
-                reply_to = None
 
                 # Якщо є файли, завантажуємо їх
                 if event.message.media:
@@ -139,24 +142,24 @@ class TelegramBot:
                         files.append(file_name)
 
                 # Якщо є відповідь
-                if reply_to_msg_id:
-                    original_message = await event.message.get_reply_message()
-                    if original_message:
+                reply_to = None
+                if event.message.reply_to and event.message.reply_to.reply_to_top_id:
+                    original_message = await event.message.get_reply_message()  # Отримуємо вихідне повідомлення
+                    if original_message:  # Переконуємося, що вихідне повідомлення існує
                         original_author_name = ""
-                        if original_message.sender:
+                        if original_message.sender:  # Отримуємо ім’я автора вихідного повідомлення
                             sender = original_message.sender
                             if isinstance(sender, User):
                                 original_author_name = sender.username or sender.first_name or sender.last_name or ""
                             elif isinstance(sender, (Channel, Chat)):
                                 original_author_name = sender.title or ""
 
+                        # Формуємо відповідь
                         reply_to = {
-                            "branch_name": branch_name,
                             "author": original_author_name,
                             "content": original_message.message or ""
                         }
-
-                full_message = f'`{branch_name} {author_name}:`\n{message_content}' if branch_name else f'`{author_name}:`\n{message_content}'
+                full_message = f'`{author_name}:`\n{message_content}'
 
                 await self.forward_message(full_message, files=files, reply_to=reply_to, target_chanel=target_channel)
 

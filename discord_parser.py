@@ -1,11 +1,9 @@
 import asyncio
 import json
-import os
-import time
-from typing import List, Optional
+from typing import List
 
 import requests
-from pars_conf import DISCORD_TOKEN, json_file_path, TARGET_GUILD_ID
+from pars_conf import DISCORD_TOKEN, json_file_path, TARGET_GUILD_ID, channel_map
 
 headers = {
     "Authorization": DISCORD_TOKEN,
@@ -126,6 +124,9 @@ async def monitor_channels():
     """
     Основний асинхронний процес для моніторингу всіх каналів з урахуванням затримки між повідомленнями.
     """
+    with open(channel_map, 'r', encoding='utf-8') as f:
+        required_channels = json.load(f)
+
     while True:
         try:
             print("Отримую список каналів...")
@@ -138,7 +139,11 @@ async def monitor_channels():
             # Проходимо по кожному текстовому каналу
             for channel in channels:
                 channel_id = channel["id"]
-                await get_last_message_from_channel(channel_id)
+                if str(channel_id) in required_channels:
+                    print(f"ID {channel_id} знайдено в JSON. Все добре.")
+                    await get_last_message_from_channel(channel_id)
+                else:
+                    print(f"ID {channel_id} відсутній у JSON. Пропускаємо цей канал.")
 
             # Затримка на 30 секунд між обробкою списку каналів
             await asyncio.sleep(5)
