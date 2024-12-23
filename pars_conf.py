@@ -29,8 +29,6 @@ except FileNotFoundError as e:
 
 # Експортуємо змінні із config.json
 account = config['account']
-source_channel_ids = config['source_channel_ids']
-destination_channel_usernames = config['destination_channel_usernames']
 
 DISCORD_TOKEN = config['DISCORD_TOKEN']  # Discord API токен
 TARGET_GUILD_ID = config['TARGET_GUILD_ID']  # ID цільового каналу

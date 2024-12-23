@@ -27,8 +27,6 @@ spec.loader.exec_module(pars_conf)
 
 # Доступ до змінних з pars_conf
 account = pars_conf.account
-source_channel_ids = pars_conf.source_channel_ids
-destination_channel_usernames = pars_conf.destination_channel_usernames
 json_file_path = pars_conf.json_file_path
 
 channel_map = pars_conf.channel_map
@@ -127,16 +125,6 @@ class TGDiscordInterface(QWidget):
         add_input_field("API Hash:", self.api_hash_input,
                         "Введіть ваш API Hash для Telegram. Ви можете отримати його на сайті my.telegram.org.")
 
-        self.source_channel_input = QLineEdit(self)
-        self.source_channel_input.setText(', '.join(map(str, self.config['source_channel_ids'])))
-        add_input_field("Source Channel IDs:", self.source_channel_input,
-                        "Введіть ID каналу. Це ID можна отримати зайшовши в web версію телеграм, та обравши потрібний канал.\nПісля чого в строці адресу сторінки скопіювати id каналу")
-
-        self.destination_channel_input = QLineEdit(self)
-        self.destination_channel_input.setText(', '.join(self.config['destination_channel_usernames']))
-        add_input_field("Destination Channels:", self.destination_channel_input,
-                        "Введіть імена каналу. Наприклад, @channel_name або посилання наприклад, https://t.me/...")
-
         self.discord_token_input = QLineEdit(self)
         self.discord_token_input.setText(self.config['DISCORD_TOKEN'])
         add_input_field("Discord Token:", self.discord_token_input,
@@ -152,7 +140,7 @@ class TGDiscordInterface(QWidget):
         self.guild_id_input = QLineEdit(self)
         self.guild_id_input.setText(self.config.get('TARGET_GUILD_ID', ''))
         add_input_field("Target Guild ID:", self.guild_id_input,
-                        "Введіть ID сервера Discord. Це можна отримати, увімкнувши 'Developer Mode' у Discord.")
+                        "Введіть ID сервера Discord. Для цього потрібно увімкнути 'Developer Mode' у Discord. Та скопіювати id потрібного сервера в discord нажавши на нього правою клавішею.")
 
         # Apply button to save config
         self.apply_btn_config = QPushButton('Apply config', self)
@@ -199,7 +187,6 @@ class TGDiscordInterface(QWidget):
         self.config['account']['api_id'] = self.api_id_input.text()
         self.config['account']['api_hash'] = self.api_hash_input.text()
         self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
-        self.config['destination_channel_usernames'] = self.destination_channel_input.text().split(',')
         self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
         self.config['TARGET_GUILD_ID'] = self.guild_id_input.text()
 

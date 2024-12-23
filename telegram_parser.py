@@ -3,7 +3,7 @@ import os
 import json
 
 from telethon import TelegramClient, events
-from pars_conf import account, source_channel_ids, json_file_path, channel_map
+from pars_conf import account, json_file_path, channel_map
 from telethon.tl.types import User, Channel, Chat
 
 
@@ -96,7 +96,7 @@ class TelegramBot:
             print(f"Помилка при пересиланні повідомлення в {target_chanel}: {e}")
 
     def setup_message_handler(self):
-        @self.client.on(events.NewMessage(chats=source_channel_ids))
+        @self.client.on(events.NewMessage())
         async def handle_event(event):
             try:
                 # Зчитування каналу-отримувача з файлу channel_to_channel.json
