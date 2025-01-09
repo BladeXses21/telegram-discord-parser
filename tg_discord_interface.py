@@ -284,6 +284,5 @@ if __name__ == '__main__':
     ex = TGDiscordInterface()
 
     check_expiry_date(ex)
-
     ex.show()
     sys.exit(app.exec_())
