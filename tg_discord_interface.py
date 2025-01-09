@@ -285,4 +285,5 @@ if __name__ == '__main__':
 
     check_expiry_date(ex)
     ex.show()
+
     sys.exit(app.exec_())
