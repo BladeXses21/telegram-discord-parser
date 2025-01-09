@@ -186,7 +186,6 @@ class TGDiscordInterface(QWidget):
         # Update config dictionary with new values
         self.config['account']['api_id'] = self.api_id_input.text()
         self.config['account']['api_hash'] = self.api_hash_input.text()
-        self.config['source_channel_ids'] = list(map(int, self.source_channel_input.text().split(',')))
         self.config['DISCORD_TOKEN'] = self.discord_token_input.text()
         self.config['TARGET_GUILD_ID'] = self.guild_id_input.text()
 
