@@ -108,7 +108,6 @@ pip install -r requirements.txt
 
 - **`DISCORD_TOKEN`** — ваш токен облікового запису Discord.
 - **`TARGET_GUILD_ID`** — ID сервера Discord.
-- **`source_channel_ids`** — Telegram-канали, з яких беруться повідомлення.
 - **`account`** — API ID та API Hash вашого Telegram облікового запису.
 
 ### Конфігурація каналів у файлі `channel_to_channel.json`
