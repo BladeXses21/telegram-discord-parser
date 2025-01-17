@@ -1,0 +1,8 @@
+{
+    "DISCORD_TOKEN": "",
+    "TARGET_GUILD_ID": "",
+    "account": {
+        "api_id": "",
+        "api_hash": ""
+    }
+}

@@ -2,70 +2,10 @@ import asyncio
 import os
 import json
 
-from moviepy import CompositeVideoClip, TextClip, VideoFileClip
 from telethon import TelegramClient, events
 from pars_conf import account, json_file_path, channel_map
 from telethon.tl.types import User, Channel, Chat
-from PIL import Image, ImageDraw, ImageFont
 
-
-def add_watermark_to_image(image_path, watermark_text, output_path):
-    try:
-        # Перевірка, чи існує файл
-        if not os.path.exists(image_path):
-            raise FileNotFoundError(f"Файл не знайдено: {image_path}")
-
-        # Відкрити зображення
-        img = Image.open(image_path)
-        draw = ImageDraw.Draw(img)
-
-        # Задати шрифт і розмір
-        width, height = img.size
-        font_size = int(height / 20)
-        try:
-            # Завантажуємо шрифт
-            font = ImageFont.truetype("arial.ttf", font_size)
-        except IOError:
-            # Використовуємо шрифт за замовчуванням, якщо "arial.ttf" недоступний
-            font = ImageFont.load_default()
-
-        # Обчислюємо розмір тексту
-        text_bbox = font.getbbox(watermark_text)
-        text_width, text_height = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
-
-        # Позиція для тексту (справа внизу із відступом)
-        position = (width - text_width - 10, height - text_height - 10)
-
-        # Додати текст водяного знака
-        draw.text(position, watermark_text, font=font, fill=(255, 255, 255, 128))  # Білий із прозорістю
-        img.save(output_path)
-
-        print(f"Зображення з водяним знаком збережено у {output_path}")
-    except Exception as e:
-        print(f"Помилка обробки зображення: {e}")
-
-
-
-def add_watermark_to_video(video_path, watermark_text, output_path):
-    try:
-        # Перевірка, чи існує файл
-        if not os.path.exists(video_path):
-            raise FileNotFoundError(f"Файл не знайдено: {video_path}")
-
-        # Завантажити відео
-        video = VideoFileClip(video_path)
-
-        # Додати текстовий кліп для водяного знака
-        watermark = TextClip(watermark_text, fontsize=30, color='white', stroke_color='black', stroke_width=2)
-        watermark = watermark.set_duration(video.duration).set_pos(('right', 'bottom')).margin(right=10, bottom=10)
-
-        # Додати водяний знак до відео
-        final_video = CompositeVideoClip([video, watermark])
-        final_video.write_videofile(output_path, codec='libx264', audio_codec='aac')
-
-        print(f"Відео з водяним знаком збережено у {output_path}")
-    except Exception as e:
-        print(f"Помилка обробки відео: {e}")
 
 
 class TelegramBot:
